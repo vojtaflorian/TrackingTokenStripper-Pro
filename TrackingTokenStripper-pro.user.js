@@ -5,8 +5,8 @@
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @author       Vojta Florian (Inspired by Will Huang https://github.com/doggy8088/TrackingTokenStripper)
-// @updateURL    https://github.com/vojtaflorian/TrackingTokenStripper-Pro/refs/heads/main/TrackingTokenStripper-pro.user.js
-// @downloadURL  https://github.com/vojtaflorian/TrackingTokenStripper-Pro/refs/heads/main/TrackingTokenStripper-pro.user.js
+// @updateURL    https://raw.githubusercontent.com/vojtaflorian/TrackingTokenStripper-Pro/refs/heads/master/TrackingTokenStripper-pro.user.js
+// @downloadURL  https://raw.githubusercontent.com/vojtaflorian/TrackingTokenStripper-Pro/refs/heads/master/TrackingTokenStripper-pro.user.js
 // @match        *://*/*
 // @run-at       document-start
 // @grant        GM_getValue
