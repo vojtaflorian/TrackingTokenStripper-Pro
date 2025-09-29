@@ -103,35 +103,58 @@ A [Tampermonkey](https://www.tampermonkey.net/) Userscript that removes tracking
   - **Meiro CDP**
     - `meiro_message_id`
 
-## Usage
+  - **Customer Data Platforms (CDPs)**
+    - `SEGMENT`          // Segment CDP
+    - `spm_id`           // Segment campaign ID
+    - `spm_campaign`     // Segment campaign tracking
+    - `bcid`             // BlueConic ID
+    - `blueconic_id`     // BlueConic visitor ID
+    - `utag_main`        // Tealium main tracking
+    - `utag_visitor_id`  // Tealium visitor ID
 
-1. Install [Tampermonkey](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) Chrome extension.
+  - **Mailing Platforms**
+    - `_ke`              // Klaviyo ID
+    - `_klaviyo_id`      // Klaviyo customer ID
+    - `actid`            // ActiveCampaign ID
+    - `act_cid`          // ActiveCampaign campaign ID
+    - `act_campaign`     // ActiveCampaign specific campaign
+    - `sibsource`        // Sendinblue source
+    - `sibeid`           // Sendinblue email ID
+    - `gr_source`        // GetResponse source
+    - `gr_campaign_id`   // GetResponse campaign ID
+    - `ck_campaign`      // ConvertKit campaign ID
+    - `ck_email_id`      // ConvertKit email ID
+    - `aweber_campaign_id` // AWeber campaign ID
+    - `aweber_subscriber_id` // AWeber subscriber ID
 
-2. Click [this link](https://github.com/vojtaflorian/TrackingTokenStripper-Pro/raw/master/TrackingTokenStripper-Pro.user.js) to install Userscript.
+  - **Advertising/Tracking Platforms**
+    - `crt_id`           // Criteo ID
+    - `crt_ref`          // Criteo referrer
+    - `adroll_fid`       // AdRoll ID
+    - `adroll_sid`       // AdRoll session ID
+    - `rakuten_ad_id`    // Rakuten Marketing ad ID
+    - `taboola_ref`      // Taboola referrer
+    - `taboola_ad_id`     // Taboola ad ID
 
-3. Hit **Install** on the Tampermonkey extension page.
+  - **A/B Testing and Personalization Platforms**
+    - `optimizely_end_user_id` // Optimizely end user ID
+    - `optimizely_visitor_id`  // Optimizely visitor ID
+    - `vwo_user_id`            // VWO user ID
+    - `vwo_test_id`            // VWO test ID
+    - `unbounce`               // Unbounce campaign ID
+    - `instapage_campaign_id`   // Instapage campaign ID
 
-    ![Tampermonkey Userscript installation](https://user-images.githubusercontent.com/88981/91120197-acc9ad00-e6c7-11ea-8f4c-2fa3526a72b7.jpg)
+  - **Other Marketing & Analytics Platforms**
+    - `mpid`                 // Mixpanel ID
+    - `mp_referrer`          // Mixpanel referrer
+    - `heap_id`              // Heap Analytics ID
+    - `pardot_visitor_id`    // Pardot visitor ID
+    - `pardot_campaign_id`    // Pardot campaign ID
 
-## Links
-
-- [Tampermonkey • Documentation](https://www.tampermonkey.net/documentation.php)
-  - [@run-at](https://www.tampermonkey.net/documentation.php#_run_at)
-- [About | TrackingTokenStripper Pro | Userscripts | OpenUserJS](https://openuserjs.org/scripts/vojtaflorian/TrackingTokenStripper-Pro)
-- [TrackingTokenStripper Pro | Greasy Fork](https://greasyfork.org/en/scripts/409925-trackingtokenstripper-pro)
-
-## Related Userscripts
-
-- [chgc/CleanFBSapce: 不想看到 FB 贊助廣告的套件](https://github.com/chgc/CleanFBSapce)
-
-## Changelog
-
-### 2025-09-29
-
-- **Pro Version Released**: New features including error handling, logging, and performance monitoring.
-- **New Tokens**: Added support for new tokens, including TikTok, LinkedIn, and updated Google Analytics.
-- **Enhanced Logging**: Detailed logs now include timing and category of tokens removed.
-
----
-
-This script is an enterprise-grade version of the original **TrackingTokenStripper**, designed for more robust tracking token removal and additional monitoring features. It helps ensure cleaner URLs by removing tracking parameters before page load, improving privacy and security.
+  - **Social Media Platforms (advanced)**
+    - `tt_ad_id`             // TikTok ad ID
+    - `tt_campaign_id`       // TikTok campaign ID
+    - `pin_ads`              // Pinterest ad ID
+    - `pin_campaign`         // Pinterest campaign ID
+    - `sc_ad_id`             // Snapchat ad ID
+    - `sc_campaign_id`        // Snapchat campaign ID
