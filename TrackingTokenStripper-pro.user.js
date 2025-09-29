@@ -55,7 +55,10 @@
                 '_gl',              // Google linker parameter
                 'gbraid',           // 🆕 Google's privacy-preserving click ID (iOS)
                 'wbraid',           // 🆕 Google's web-to-app click ID
-                'srsltid'           // 🆕 Google Shopping click identifier
+                'srsltid',          // 🆕 Google Shopping click identifier
+                'gad_source',       // 🆕 Google Ads source
+                'gad_campaignid',   // 🆕 Google Ads campaign ID 
+                'aclk'              // Google Ads click tracking
             ],
 
             // UTM parameters (Urchin Tracking Module)
