@@ -21,6 +21,10 @@ A [Tampermonkey](https://www.tampermonkey.net/) Userscript that removes tracking
     - `gbraid`
     - `wbraid`
     - `srsltid`
+    - `gad_source`
+    - `gad_campaignid`
+    - `aclk`
+
   - **UTM Parameters** (Urchin Tracking Module)
     - `utm_source`
     - `utm_medium`
@@ -158,3 +162,4 @@ A [Tampermonkey](https://www.tampermonkey.net/) Userscript that removes tracking
     - `pin_campaign`         // Pinterest campaign ID
     - `sc_ad_id`             // Snapchat ad ID
     - `sc_campaign_id`        // Snapchat campaign ID
+
