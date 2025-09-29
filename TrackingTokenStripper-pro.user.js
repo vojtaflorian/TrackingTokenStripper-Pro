@@ -14,7 +14,7 @@
 // @grant        GM_log
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     // ============================================================================
@@ -76,6 +76,8 @@
 
             // TikTok (critical for 2025!)
             tiktok: [
+                'tt_ad_id',             // TikTok ad ID
+                'tt_campaign_id',       // TikTok campaign ID
                 'ttclid',           // 🆕 TikTok Click ID (auto-added since April 2024)
                 '_ttp'              // 🆕 TikTok cookie identifier
             ],
@@ -88,6 +90,8 @@
             // Pinterest
             pinterest: [
                 'epik',             // 🆕 Pinterest Click ID
+                'pin_ads',              // Pinterest ad ID
+                'pin_campaign',         // Pinterest campaign ID
                 '_pinterest_ct',    // Pinterest in-app browser cookie
                 'pin_unauth'        // Pinterest unauthenticated user ID
             ],
@@ -95,7 +99,9 @@
             // Snapchat
             snapchat: [
                 'ScCid',            // 🆕 Snapchat Click ID
-                '_scid'             // Snapchat cookie ID
+                '_scid',             // Snapchat cookie ID
+                'sc_ad_id',             // Snapchat ad ID
+                'sc_campaign_id'        // Snapchat campaign ID
             ],
 
             // Twitter/X
@@ -125,7 +131,19 @@
                 'mc_cid',           // MailChimp campaign ID
                 'mc_eid',           // MailChimp email ID
                 'mkt_tok',          // Marketo token
-                '_ke'               // 🆕 Klaviyo email tracking
+                '_ke',               // 🆕 Klaviyo email tracking
+                '_klaviyo_id',      // Klaviyo customer ID
+                'actid',            // ActiveCampaign ID
+                'act_cid',          // ActiveCampaign campaign ID
+                'act_campaign',     // ActiveCampaign specific campaign
+                'sibsource',        // Sendinblue source
+                'sibeid',           // Sendinblue email ID
+                'gr_source',        // GetResponse source
+                'gr_campaign_id',   // GetResponse campaign ID
+                'ck_campaign',      // ConvertKit campaign ID
+                'ck_email_id',      // ConvertKit email ID
+                'aweber_campaign_id', // AWeber campaign ID
+                'aweber_subscriber_id' // AWeber subscriber ID
             ],
 
             // Yandex (Russian search engine)
@@ -184,9 +202,46 @@
                 'clickid',          // Generic click ID
                 'zanpid'            // Zanox/Awin partner ID
             ],
-            // Meiro CDP
-            meiro: [
-                'meiro_message_id'       // Internal source
+
+            // Customer Data Platforms (CDPs)
+            cdp: [
+                'SEGMENT',          // Segment CDP
+                'spm_id',           // Segment campaign ID
+                'spm_campaign',     // Segment campaign tracking
+                'bcid',             // BlueConic ID
+                'blueconic_id',     // BlueConic visitor ID
+                'utag_main',        // Tealium main tracking
+                'utag_visitor_id',   // Tealium visitor ID
+                'meiro_message_id'       // Meiro
+            ],
+            // Advertising/Tracking Platforms
+            advertising: [
+                'crt_id',           // Criteo ID
+                'crt_ref',          // Criteo referrer
+                'adroll_fid',       // AdRoll ID
+                'adroll_sid',       // AdRoll session ID
+                'rakuten_ad_id',    // Rakuten Marketing ad ID
+                'taboola_ref',      // Taboola referrer
+                'taboola_ad_id'     // Taboola ad ID
+            ],
+
+            // A/B Testing and Personalization Platforms
+            abTesting: [
+                'optimizely_end_user_id', // Optimizely end user ID
+                'optimizely_visitor_id',  // Optimizely visitor ID
+                'vwo_user_id',            // VWO user ID
+                'vwo_test_id',            // VWO test ID
+                'unbounce',               // Unbounce campaign ID
+                'instapage_campaign_id'   // Instapage campaign ID
+            ],
+
+            // Other Marketing & Analytics Platforms
+            analytics: [
+                'mpid',                 // Mixpanel ID
+                'mp_referrer',          // Mixpanel referrer
+                'heap_id',              // Heap Analytics ID
+                'pardot_visitor_id',    // Pardot visitor ID
+                'pardot_campaign_id'    // Pardot campaign ID
             ]
         },
 
