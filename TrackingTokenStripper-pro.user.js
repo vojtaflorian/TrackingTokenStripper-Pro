@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20251016.01
+// @version      20260123.01
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -28,10 +28,10 @@
      */
     const CONFIG = {
         // Enable/disable debug logging
-        debugMode: true,  // Set to true for debugging
+        debugMode: false,  // Set to true for debugging
 
         // Enable/disable performance monitoring
-        performanceMonitoring: true,
+        performanceMonitoring: false,
 
         // Maximum redirect attempts to prevent infinite loops
         maxRedirectAttempts: 3,
@@ -256,6 +256,11 @@
         }
     };
 
+    // Pre-compute flattened tokens Set for O(1) lookup (singleton, created once)
+    const TOKENS_TO_REMOVE = new Set(
+        Object.values(CONFIG.trackingTokens).flat()
+    );
+
     // ============================================================================
     // LOGGER UTILITY
     // ============================================================================
@@ -268,7 +273,7 @@
         constructor(moduleName, debugMode = false) {
             this.moduleName = moduleName;
             this.debugMode = debugMode;
-            this.startTime = performance.now();
+            this.startTime = debugMode ? performance.now() : 0;
         }
 
         /**
@@ -345,23 +350,11 @@
     class URLSanitizer {
         constructor(logger) {
             this.logger = logger;
-            this.tokensToRemove = this._flattenTokens();
-        }
-
-        /**
-         * Flatten nested tracking tokens configuration into single array
-         * @private
-         */
-        _flattenTokens() {
-            const tokens = [];
-            for (const category in CONFIG.trackingTokens) {
-                tokens.push(...CONFIG.trackingTokens[category]);
-            }
-            this.logger.debug(`Loaded ${tokens.length} tracking tokens to remove`, {
-                tokenCount: tokens.length,
+            this.tokensToRemove = TOKENS_TO_REMOVE;
+            this.logger.debug(`Using ${this.tokensToRemove.size} tracking tokens`, {
+                tokenCount: this.tokensToRemove.size,
                 categories: Object.keys(CONFIG.trackingTokens)
             });
-            return new Set(tokens);
         }
 
         /**
@@ -413,7 +406,6 @@
 
                 // Track which parameters were removed for logging
                 const removedParams = [];
-                const originalParamCount = url.searchParams.toString().length;
 
                 // Iterate through all search parameters
                 for (const [key] of Array.from(url.searchParams.entries())) {
@@ -462,8 +454,7 @@
                 const errorEntry = {
                     timestamp: new Date().toISOString(),
                     error: error.message,
-                    url: url,
-                    userAgent: navigator.userAgent
+                    url: url
                 };
 
                 // Get existing error log or create new array
@@ -503,8 +494,8 @@
         _canRedirect() {
             try {
                 const now = Date.now();
-                const lastRedirect = parseInt(GM_getValue(CONFIG.storageKeys.lastRedirect, '0'));
-                const redirectCount = parseInt(GM_getValue(CONFIG.storageKeys.redirectCount, '0'));
+                const lastRedirect = parseInt(GM_getValue(CONFIG.storageKeys.lastRedirect, '0'), 10);
+                const redirectCount = parseInt(GM_getValue(CONFIG.storageKeys.redirectCount, '0'), 10);
 
                 // Reset counter if last redirect was more than 5 seconds ago
                 if (now - lastRedirect > 5000) {
@@ -526,8 +517,8 @@
 
             } catch (error) {
                 this.logger.error('Failed to check redirect safety', error);
-                // On error, allow redirect (fail-open approach)
-                return true;
+                // On error, block redirect (fail-safe approach to prevent loops)
+                return false;
             }
         }
 
@@ -538,7 +529,7 @@
         _updateRedirectTracking() {
             try {
                 const now = Date.now();
-                const currentCount = parseInt(GM_getValue(CONFIG.storageKeys.redirectCount, '0'));
+                const currentCount = parseInt(GM_getValue(CONFIG.storageKeys.redirectCount, '0'), 10);
 
                 GM_setValue(CONFIG.storageKeys.lastRedirect, now.toString());
                 GM_setValue(CONFIG.storageKeys.redirectCount, (currentCount + 1).toString());
