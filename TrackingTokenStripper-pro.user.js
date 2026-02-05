@@ -420,6 +420,74 @@
     }
 
     // ============================================================================
+    // MODULE RUNNER
+    // ============================================================================
+
+    /**
+     * Orchestrates module initialization with fail-safe error handling
+     * Each module failure is isolated - doesn't affect other modules
+     */
+    const ModuleRunner = {
+        modules: {},
+        initialized: [],
+        failed: [],
+        logger: null,
+
+        /**
+         * Register a module for initialization
+         * @param {string} name - Module name (must match CONFIG.modules key)
+         * @param {object} module - Module object with init() method
+         */
+        register(name, module) {
+            this.modules[name] = module;
+        },
+
+        /**
+         * Run all registered modules based on CONFIG
+         * @param {Logger} logger - Logger instance
+         */
+        run(logger) {
+            this.logger = logger;
+            const startTime = performance.now();
+
+            for (const [name, module] of Object.entries(this.modules)) {
+                // Skip disabled modules
+                if (!CONFIG.modules[name]) {
+                    this.logger.debug(`Module ${name}: disabled`);
+                    continue;
+                }
+
+                try {
+                    module.init(this.logger);
+                    this.initialized.push(name);
+                    this.logger.debug(`Module ${name}: initialized`);
+                } catch (error) {
+                    this.failed.push({ name, error: error.message });
+                    this.logger.error(`Module ${name} failed to initialize`, error);
+                    // Continue with other modules (fail-safe)
+                }
+            }
+
+            const elapsed = (performance.now() - startTime).toFixed(2);
+            this.logger.info(`ModuleRunner complete in ${elapsed}ms`, {
+                active: this.initialized,
+                failed: this.failed.map(f => f.name),
+            });
+        },
+
+        /**
+         * Get stats for debugging
+         */
+        getStats() {
+            return {
+                registered: Object.keys(this.modules),
+                initialized: this.initialized,
+                failed: this.failed,
+            };
+        },
+    };
+
+    // ============================================================================
     // URL SANITIZER
     // ============================================================================
 
