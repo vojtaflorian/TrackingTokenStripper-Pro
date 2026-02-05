@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260123.01
+// @version      20260205.01
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -739,6 +739,52 @@
             }
         }
     }
+
+    // ============================================================================
+    // MODULE: URL CLEANER
+    // ============================================================================
+
+    /**
+     * URL Cleaner Module - removes tracking parameters from URLs
+     * This is the original functionality wrapped as a module
+     */
+    const UrlCleanerModule = {
+        name: 'UrlCleaner',
+        sanitizer: null,
+        redirectManager: null,
+        logger: null,
+
+        init(logger) {
+            this.logger = logger;
+            this.sanitizer = new URLSanitizer(logger);
+            this.redirectManager = new RedirectManager(logger);
+
+            // Clean current URL on init
+            this.cleanCurrentUrl();
+
+            this.logger.debug('UrlCleaner module initialized');
+        },
+
+        cleanCurrentUrl() {
+            const currentUrl = location.href;
+            const cleanUrl = this.sanitizer.sanitize(currentUrl);
+
+            if (cleanUrl && cleanUrl !== currentUrl) {
+                this.logger.info('Tracking tokens detected, initiating cleanup');
+                this.redirectManager.redirect(cleanUrl);
+            }
+        },
+
+        /**
+         * Public method to clean any URL (used by HistoryApiPatch)
+         */
+        cleanUrl(urlString) {
+            return this.sanitizer.sanitize(urlString);
+        },
+    };
+
+    // Register module
+    ModuleRunner.register('urlCleaner', UrlCleanerModule);
 
     // ============================================================================
     // MAIN EXECUTION
