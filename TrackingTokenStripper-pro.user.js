@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260205.03
+// @version      20260205.04
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -994,6 +994,84 @@
 
     // Register module
     ModuleRunner.register('canvasSpoofing', CanvasSpoofingModule);
+
+    // ============================================================================
+    // MODULE: AUDIO SPOOFING
+    // ============================================================================
+
+    /**
+     * Audio Spoofing Module - adds noise to audio fingerprinting attempts
+     * Injects microscopic noise that changes the fingerprint hash
+     */
+    const AudioSpoofingModule = {
+        name: 'AudioSpoofing',
+        logger: null,
+        noise: 0,
+
+        init(logger) {
+            this.logger = logger;
+
+            // Generate session-consistent noise factor
+            this.noise = (Math.random() - 0.5) * 0.0001; // ±0.00005
+
+            // Patch audio methods
+            this.patchGetChannelData();
+            this.patchCopyFromChannel();
+            this.patchGetFloatFrequencyData();
+
+            this.logger.debug('AudioSpoofing module initialized', {
+                noiseFactor: this.noise.toExponential(2),
+            });
+        },
+
+        patchGetChannelData() {
+            const self = this;
+            const original = AudioBuffer.prototype.getChannelData;
+
+            AudioBuffer.prototype.getChannelData = function(channel) {
+                const data = original.call(this, channel);
+
+                // Add noise every 100th sample for performance
+                for (let i = 0; i < data.length; i += 100) {
+                    data[i] += self.noise;
+                }
+
+                return data;
+            };
+        },
+
+        patchCopyFromChannel() {
+            const self = this;
+            const original = AudioBuffer.prototype.copyFromChannel;
+
+            if (!original) return; // May not exist in all browsers
+
+            AudioBuffer.prototype.copyFromChannel = function(dest, channel, offset = 0) {
+                original.call(this, dest, channel, offset);
+
+                for (let i = 0; i < dest.length; i += 100) {
+                    dest[i] += self.noise;
+                }
+            };
+        },
+
+        patchGetFloatFrequencyData() {
+            const self = this;
+            const original = AnalyserNode.prototype.getFloatFrequencyData;
+
+            AnalyserNode.prototype.getFloatFrequencyData = function(array) {
+                original.call(this, array);
+
+                // Frequency data has different range, scale noise accordingly
+                for (let i = 0; i < array.length; i += 50) {
+                    array[i] += self.noise * 1000;
+                }
+            };
+        },
+    };
+
+    // Register module
+    ModuleRunner.register('audioSpoofing', AudioSpoofingModule);
 
     // ============================================================================
     // MAIN EXECUTION
