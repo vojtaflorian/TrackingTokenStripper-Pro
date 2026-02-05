@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260205.08
-// @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
+// @version      20260205.01
+// @description  Enterprise-grade anti-tracking suite: URL cleaning, fingerprint spoofing, beacon blocking, and more (v2)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @author       Vojta Florian (Inspired by Will Huang https://github.com/doggy8088/TrackingTokenStripper)
@@ -12,6 +12,7 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_log
+// @grant        GM_info
 // ==/UserScript==
 
 (function () {
