@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260205.04
+// @version      20260205.05
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -1072,6 +1072,94 @@
 
     // Register module
     ModuleRunner.register('audioSpoofing', AudioSpoofingModule);
+
+    // ============================================================================
+    // MODULE: BEACON BLOCKER
+    // ============================================================================
+
+    /**
+     * Beacon Blocker Module - blocks tracking beacons and pixels
+     * Intercepts sendBeacon and fetch with keepalive
+     */
+    const BeaconBlockerModule = {
+        name: 'BeaconBlocker',
+        logger: null,
+        stats: { blocked: 0, allowed: 0 },
+
+        init(logger) {
+            this.logger = logger;
+
+            // Patch sendBeacon
+            this.patchSendBeacon();
+
+            // Patch fetch with keepalive
+            this.patchFetch();
+
+            this.logger.debug('BeaconBlocker module initialized');
+        },
+
+        shouldBlock(url) {
+            try {
+                const targetHost = new URL(url, location.origin).hostname;
+
+                // Allow first-party if configured
+                if (CONFIG.beaconBlocker.allowFirstParty && targetHost === location.hostname) {
+                    return false;
+                }
+
+                // Test against blocked patterns
+                return CONFIG.beaconBlocker.blockedPatterns.some(pattern => pattern.test(url));
+            } catch (e) {
+                // Invalid URL - block it
+                return true;
+            }
+        },
+
+        patchSendBeacon() {
+            const self = this;
+            const original = navigator.sendBeacon?.bind(navigator);
+
+            if (!original) return;
+
+            navigator.sendBeacon = function(url, data) {
+                if (self.shouldBlock(url)) {
+                    self.stats.blocked++;
+                    self.logger.debug(`Beacon blocked: ${url}`);
+                    return true; // Fake success
+                }
+
+                self.stats.allowed++;
+                return original(url, data);
+            };
+        },
+
+        patchFetch() {
+            const self = this;
+            const original = window.fetch;
+
+            window.fetch = function(input, init) {
+                // Only intercept keepalive requests (beacon-like)
+                if (init?.keepalive) {
+                    const url = typeof input === 'string' ? input : input.url;
+
+                    if (self.shouldBlock(url)) {
+                        self.stats.blocked++;
+                        self.logger.debug(`Fetch keepalive blocked: ${url}`);
+                        return Promise.resolve(new Response('', { status: 200 }));
+                    }
+                }
+
+                return original.apply(this, arguments);
+            };
+        },
+
+        getStats() {
+            return this.stats;
+        },
+    };
+
+    // Register module
+    ModuleRunner.register('beaconBlocker', BeaconBlockerModule);
 
     // ============================================================================
     // MAIN EXECUTION
