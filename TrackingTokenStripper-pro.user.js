@@ -33,6 +33,86 @@
         // Enable/disable performance monitoring
         performanceMonitoring: false,
 
+        // Module enable/disable flags
+        modules: {
+            urlCleaner: true,           // URL parameter cleaning (existing)
+            historyApiPatch: true,      // SPA support (pushState/replaceState)
+            canvasSpoofing: true,       // Canvas fingerprint protection
+            audioSpoofing: true,        // Audio fingerprint protection
+            beaconBlocker: true,        // Block tracking beacons
+            storagePoisoner: false,     // Identity stitching prevention (aggressive)
+            mobileSpoofing: true,       // Mobile sensor spoofing
+        },
+
+        // Fingerprint spoofing settings
+        fingerprint: {
+            noiseAmplitude: 2,          // Noise range: -N to +N
+            consistentPerSession: true, // Same noise for entire session
+        },
+
+        // Beacon blocker settings
+        beaconBlocker: {
+            allowFirstParty: true,      // Allow beacons to same domain
+            blockedPatterns: [
+                /facebook\.com|facebook\.net|fbcdn\.net/i,
+                /google-analytics\.com|googletagmanager\.com/i,
+                /doubleclick\.net|googlesyndication\.com/i,
+                /tiktok\.com|tiktokcdn\.com|byteoversea\.com/i,
+                /twitter\.com|twimg\.com|t\.co/i,
+                /linkedin\.com|licdn\.com/i,
+                /pinterest\.com|pinimg\.com/i,
+                /snapchat\.com|snapkit\.com|sc-cdn\.net/i,
+                /reddit\.com|redditstatic\.com/i,
+                /analytics|tracking|pixel|collect|beacon/i,
+            ],
+        },
+
+        // Storage poisoner settings
+        storagePoisoner: {
+            frequency: 'session',       // When to poison: 'pageload' | 'session'
+            targets: {
+                // Facebook/Meta
+                '_fbp': true, '_fbc': true, 'fr': true, 'datr': true, 'sb': true,
+                // Instagram
+                'ig_did': true, 'ig_nrcb': true, 'mid': true,
+                // Twitter/X
+                'personalization_id': true, 'guest_id': true, 'guest_id_ads': true,
+                'guest_id_marketing': true, 'twid': true, 'muc_ads': true,
+                // TikTok
+                '_ttp': true, 'tt_webid': true, 'tt_webid_v2': true, 'ttwid': true,
+                // LinkedIn
+                'li_gc': true, 'li_mc': true, 'bcookie': true, 'bscookie': true,
+                'lidc': true, 'li_sugr': true, 'li_fat_id': true,
+                // Pinterest
+                '_pinterest_sess': true, '_pinterest_ct': true, '_pin_unauth': true, '_epik': true,
+                // Snapchat
+                '_scid': true, '_scid_r': true, 'sc_at': true,
+                // Reddit
+                '_rdt_uuid': true, 'loid': true,
+                // YouTube
+                'VISITOR_INFO1_LIVE': true, 'YSC': true,
+                // Twitch
+                'unique_id': true,
+                // Others
+                'tmblr_bid': true, 'remixstid': true, 'remixua': true,
+            },
+        },
+
+        // Mobile spoofing settings
+        mobileSpoofing: {
+            deviceMotion: true,         // Accelerometer/gyroscope noise
+            touchPoints: true,          // Standardize touch points
+            networkInfo: true,          // Fake network info
+            hardwareInfo: true,         // Fake hardware info
+            fakeValues: {
+                maxTouchPoints: 5,
+                hardwareConcurrency: 4,
+                deviceMemory: 4,
+                connectionType: '4g',
+                downlink: 10,
+            },
+        },
+
         // Maximum redirect attempts to prevent infinite loops
         maxRedirectAttempts: 3,
 
