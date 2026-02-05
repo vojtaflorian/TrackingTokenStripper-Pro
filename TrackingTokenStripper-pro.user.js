@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260205.01
+// @version      20260205.02
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -785,6 +785,97 @@
 
     // Register module
     ModuleRunner.register('urlCleaner', UrlCleanerModule);
+
+    // ============================================================================
+    // MODULE: HISTORY API PATCH
+    // ============================================================================
+
+    /**
+     * History API Patch Module - enables URL cleaning for SPA applications
+     * Intercepts pushState/replaceState to clean tracking parameters
+     */
+    const HistoryApiPatchModule = {
+        name: 'HistoryApiPatch',
+        logger: null,
+        originalPushState: null,
+        originalReplaceState: null,
+
+        init(logger) {
+            this.logger = logger;
+
+            // Store original methods
+            this.originalPushState = history.pushState.bind(history);
+            this.originalReplaceState = history.replaceState.bind(history);
+
+            // Patch methods
+            this.patchPushState();
+            this.patchReplaceState();
+            this.addPopstateListener();
+
+            this.logger.debug('HistoryApiPatch module initialized');
+        },
+
+        patchPushState() {
+            const self = this;
+            history.pushState = function(state, title, url) {
+                if (url) {
+                    const cleaned = self.cleanUrlIfNeeded(url);
+                    if (cleaned) {
+                        self.logger.debug(`pushState cleaned: ${url} → ${cleaned}`);
+                        return self.originalPushState(state, title, cleaned);
+                    }
+                }
+                return self.originalPushState(state, title, url);
+            };
+        },
+
+        patchReplaceState() {
+            const self = this;
+            history.replaceState = function(state, title, url) {
+                if (url) {
+                    const cleaned = self.cleanUrlIfNeeded(url);
+                    if (cleaned) {
+                        self.logger.debug(`replaceState cleaned: ${url} → ${cleaned}`);
+                        return self.originalReplaceState(state, title, cleaned);
+                    }
+                }
+                return self.originalReplaceState(state, title, url);
+            };
+        },
+
+        addPopstateListener() {
+            const self = this;
+            window.addEventListener('popstate', () => {
+                const cleaned = self.cleanUrlIfNeeded(window.location.href);
+                if (cleaned) {
+                    self.logger.debug(`popstate cleaned: ${window.location.href}`);
+                    self.originalReplaceState(history.state, document.title, cleaned);
+                }
+            });
+        },
+
+        cleanUrlIfNeeded(urlString) {
+            try {
+                const url = new URL(urlString, window.location.origin);
+                const params = url.searchParams;
+                let changed = false;
+
+                for (const key of Array.from(params.keys())) {
+                    if (TOKENS_TO_REMOVE.has(key)) {
+                        params.delete(key);
+                        changed = true;
+                    }
+                }
+
+                return changed ? url.toString() : null;
+            } catch (e) {
+                return null;
+            }
+        },
+    };
+
+    // Register module
+    ModuleRunner.register('historyApiPatch', HistoryApiPatchModule);
 
     // ============================================================================
     // MAIN EXECUTION
