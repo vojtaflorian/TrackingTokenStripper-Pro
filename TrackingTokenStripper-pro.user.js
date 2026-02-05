@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260205.07
+// @version      20260205.08
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -1434,48 +1434,34 @@
     // ============================================================================
 
     /**
-     * Main execution function with comprehensive error handling
+     * Main execution function with modular architecture
      */
     function main() {
-        const logger = new Logger('TrackingTokenStripper', CONFIG.debugMode);
+        const logger = new Logger('TTS-Pro', CONFIG.debugMode);
 
         try {
-            logger.info('Script initialization started', {
+            logger.info('TrackingTokenStripper Pro v2 initializing', {
                 url: location.href,
-                userAgent: navigator.userAgent,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
 
-            // Initialize components
-            const sanitizer = new URLSanitizer(logger);
-            const redirectManager = new RedirectManager(logger);
+            // Run all registered modules
+            ModuleRunner.run(logger);
 
-            // Get current URL
-            const currentUrl = location.href;
-            logger.debug('Current URL captured', { url: currentUrl });
-
-            // Sanitize URL
-            const cleanUrl = sanitizer.sanitize(currentUrl);
-
-            // Perform redirect if URL was cleaned
-            if (cleanUrl && cleanUrl !== currentUrl) {
-                logger.info('Tracking tokens detected, initiating cleanup');
-
-                const success = redirectManager.redirect(cleanUrl);
-
-                if (success) {
-                    logger.info('URL cleanup successful');
-                } else {
-                    logger.error('URL cleanup failed');
-                }
-            } else {
-                logger.debug('No tracking tokens detected, no action needed');
+            // Expose debug interface if enabled
+            if (CONFIG.debugMode) {
+                window.__TTS_PRO__ = {
+                    version: GM_info.script.version,
+                    config: CONFIG,
+                    stats: () => ModuleRunner.getStats(),
+                    modules: ModuleRunner.modules,
+                };
+                logger.info('Debug interface exposed as window.__TTS_PRO__');
             }
 
         } catch (error) {
-            // Top-level error handler
             logger.error('Critical error in main execution', error);
-            console.error('[TrackingTokenStripper] CRITICAL ERROR:', error);
+            console.error('[TTS-Pro] CRITICAL ERROR:', error);
         }
     }
 
@@ -1483,11 +1469,10 @@
     // SCRIPT INITIALIZATION
     // ============================================================================
 
-    // Execute main function
     try {
         main();
     } catch (criticalError) {
-        console.error('[TrackingTokenStripper] FATAL ERROR - Script failed to execute:', criticalError);
+        console.error('[TTS-Pro] FATAL ERROR:', criticalError);
     }
 
 })();
