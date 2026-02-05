@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260205.06
+// @version      20260205.07
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -1278,6 +1278,156 @@
 
     // Register module
     ModuleRunner.register('storagePoisoner', StoragePoisonerModule);
+
+    // ============================================================================
+    // MODULE: MOBILE SPOOFING
+    // ============================================================================
+
+    /**
+     * Mobile Spoofing Module - spoofs mobile device sensors and hardware info
+     * Adds noise to accelerometer/gyroscope and standardizes hardware values
+     */
+    const MobileSpoofingModule = {
+        name: 'MobileSpoofing',
+        logger: null,
+        motionNoise: 0,
+
+        init(logger) {
+            this.logger = logger;
+
+            // Generate session-consistent noise for motion sensors
+            this.motionNoise = (Math.random() - 0.5) * 0.02; // ±0.01
+
+            // Spoof based on config
+            if (CONFIG.mobileSpoofing.deviceMotion) {
+                this.spoofDeviceMotion();
+            }
+            if (CONFIG.mobileSpoofing.touchPoints) {
+                this.spoofTouchPoints();
+            }
+            if (CONFIG.mobileSpoofing.networkInfo) {
+                this.spoofNetworkInfo();
+            }
+            if (CONFIG.mobileSpoofing.hardwareInfo) {
+                this.spoofHardwareInfo();
+            }
+
+            this.logger.debug('MobileSpoofing module initialized');
+        },
+
+        spoofDeviceMotion() {
+            const self = this;
+            const originalAddEventListener = window.addEventListener;
+
+            window.addEventListener = function(type, listener, options) {
+                if (type === 'devicemotion' || type === 'deviceorientation') {
+                    const wrappedListener = (event) => {
+                        const spoofedEvent = self.createSpoofedMotionEvent(event, type);
+                        listener(spoofedEvent);
+                    };
+                    return originalAddEventListener.call(this, type, wrappedListener, options);
+                }
+                return originalAddEventListener.call(this, type, listener, options);
+            };
+        },
+
+        createSpoofedMotionEvent(event, type) {
+            const self = this;
+            const noise = () => self.motionNoise * (Math.random() + 0.5);
+
+            return new Proxy(event, {
+                get(target, prop) {
+                    // DeviceMotionEvent properties
+                    if (prop === 'accelerationIncludingGravity' && target[prop]) {
+                        return {
+                            x: target[prop].x !== null ? target[prop].x + noise() : null,
+                            y: target[prop].y !== null ? target[prop].y + noise() : null,
+                            z: target[prop].z !== null ? target[prop].z + noise() : null,
+                        };
+                    }
+                    if (prop === 'acceleration' && target[prop]) {
+                        return {
+                            x: target[prop].x !== null ? target[prop].x + noise() : null,
+                            y: target[prop].y !== null ? target[prop].y + noise() : null,
+                            z: target[prop].z !== null ? target[prop].z + noise() : null,
+                        };
+                    }
+                    if (prop === 'rotationRate' && target[prop]) {
+                        return {
+                            alpha: target[prop].alpha !== null ? target[prop].alpha + noise() * 10 : null,
+                            beta: target[prop].beta !== null ? target[prop].beta + noise() * 10 : null,
+                            gamma: target[prop].gamma !== null ? target[prop].gamma + noise() * 10 : null,
+                        };
+                    }
+
+                    // DeviceOrientationEvent properties
+                    if (['alpha', 'beta', 'gamma'].includes(prop)) {
+                        return target[prop] !== null ? target[prop] + noise() * 10 : null;
+                    }
+
+                    return target[prop];
+                }
+            });
+        },
+
+        spoofTouchPoints() {
+            const fakeValue = CONFIG.mobileSpoofing.fakeValues.maxTouchPoints;
+            try {
+                Object.defineProperty(navigator, 'maxTouchPoints', {
+                    get: () => fakeValue,
+                    configurable: true,
+                });
+            } catch (e) {
+                // May fail in some browsers
+            }
+        },
+
+        spoofNetworkInfo() {
+            if (!navigator.connection) return;
+
+            const fakeConnection = {
+                effectiveType: CONFIG.mobileSpoofing.fakeValues.connectionType,
+                downlink: CONFIG.mobileSpoofing.fakeValues.downlink,
+                rtt: 50,
+                saveData: false,
+                type: 'wifi',
+                onchange: null,
+                addEventListener: () => {},
+                removeEventListener: () => {},
+                dispatchEvent: () => true,
+            };
+
+            try {
+                Object.defineProperty(navigator, 'connection', {
+                    get: () => fakeConnection,
+                    configurable: true,
+                });
+            } catch (e) {
+                // May fail in some browsers
+            }
+        },
+
+        spoofHardwareInfo() {
+            const fakeValues = CONFIG.mobileSpoofing.fakeValues;
+
+            try {
+                Object.defineProperty(navigator, 'hardwareConcurrency', {
+                    get: () => fakeValues.hardwareConcurrency,
+                    configurable: true,
+                });
+            } catch (e) {}
+
+            try {
+                Object.defineProperty(navigator, 'deviceMemory', {
+                    get: () => fakeValues.deviceMemory,
+                    configurable: true,
+                });
+            } catch (e) {}
+        },
+    };
+
+    // Register module
+    ModuleRunner.register('mobileSpoofing', MobileSpoofingModule);
 
     // ============================================================================
     // MAIN EXECUTION
