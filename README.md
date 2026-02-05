@@ -1,5 +1,9 @@
 # TrackingTokenStripper Pro
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=flat&logo=buy-me-a-coffee)](https://buymeacoffee.com/vojtaflorian)
+
+> If you find this project useful, consider supporting its development!
+
 A [Tampermonkey](https://www.tampermonkey.net/) Userscript that removes tracking tokens from URL parameters, with enhanced logging, error handling, and performance monitoring for 2025.
 
 ## Features
