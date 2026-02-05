@@ -163,3 +163,47 @@ A [Tampermonkey](https://www.tampermonkey.net/) Userscript that removes tracking
     - `sc_ad_id`             // Snapchat ad ID
     - `sc_campaign_id`        // Snapchat campaign ID
 
+## v2 Features (2026-02-05)
+
+### Modular Architecture
+- **UrlCleaner** - URL parameter tracking removal (21 token categories)
+- **HistoryApiPatch** - SPA support for React, Vue, Angular apps
+- **CanvasSpoofing** - Canvas fingerprint protection with session-consistent noise
+- **AudioSpoofing** - Audio fingerprint protection
+- **BeaconBlocker** - Blocks tracking beacons and pixels
+- **StoragePoisoner** - Corrupts tracking IDs to prevent identity stitching (disabled by default)
+- **MobileSpoofing** - Mobile sensor and hardware fingerprint protection
+
+### Configuration
+Enable/disable modules in the CONFIG section:
+```javascript
+modules: {
+    urlCleaner: true,
+    historyApiPatch: true,
+    canvasSpoofing: true,
+    audioSpoofing: true,
+    beaconBlocker: true,
+    storagePoisoner: false,  // Aggressive - enable manually
+    mobileSpoofing: true,
+}
+```
+
+### Social Media Coverage
+Protects against tracking from 15+ platforms:
+- Facebook/Meta, Instagram, WhatsApp
+- Twitter/X
+- TikTok
+- LinkedIn
+- Pinterest
+- Snapchat
+- Reddit
+- YouTube
+- Twitch, Discord, Tumblr, VK, Weibo
+
+### Debug Mode
+Enable `debugMode: true` in CONFIG to access:
+```javascript
+window.__TTS_PRO__.stats()   // Module statistics
+window.__TTS_PRO__.config    // Current configuration
+window.__TTS_PRO__.modules   // Registered modules
+```
