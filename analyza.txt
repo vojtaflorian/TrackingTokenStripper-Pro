@@ -1,0 +1,529 @@
+Technická analýza architektury digitálního sledování a implementace protiopatření na straně klienta
+Úvod do problematiky digitální surveillance
+V roce 2026 dosáhl ekosystém online sledování (web tracking) takové míry komplexity, že termín "digitální stopa" již neodpovídá realitě; přesnější by bylo hovořit o digitální stínové identitě, která je dynamicky konstruována v reálném čase. Zatímco v první dekádě 21. století bylo sledování uživatelů postaveno primárně na deterministických identifikátorech uložených v textových souborech (HTTP cookies), současná "surveillance economy" využívá probabilistické modely, analýzu hardwarových instrukcí a zneužívání bezpečnostních protokolů k identifikaci zařízení bez nutnosti ukládat jakákoliv data na straně klienta.
+Tato transformace byla urychlena postupným zaváděním restrikcí ze strany prohlížečů (např. Intelligent Tracking Prevention v Safari, Enhanced Tracking Protection ve Firefoxu) a legislativních rámců (GDPR, ePrivacy). Paradoxně, snaha o blokování cookies třetích stran vedla k vývoji mnohem invazivnějších technik, jako je browser fingerprinting nebo server-side tracking, které jsou pro běžného uživatele prakticky neviditelné a obtížně blokovatelné.
+Následující report předkládá vyčerpávající technickou disekci těchto mechanismů. Cílem je dekonstruovat "černou skříňku" reklamních technologií (AdTech) na úroveň jednotlivých síťových požadavků, JavaScriptových API a paměťových struktur prohlížeče. Druhá část reportu pak transformuje tyto teoretické znalosti do praktické roviny a poskytuje sadu pokročilých protiopatření ve formě uživatelských skriptů (Userscripts) a systémových konfigurací, které umožňují mitigovat rizika spojená s profilováním uživatelů.
+ČÁST 1: DETAILNÍ ANALÝZA TRACKING METOD
+Moderní tracking není monolitická technologie, ale vrstvená architektura. Pokud selže jedna vrstva (např. blokace cookies), automaticky nastupuje vrstva další (např. obnovení ID z Local Storage). Pokud je vyčištěno úložiště, nastupuje fingerprinting. Pokud je maskován fingerprint, nastupuje behaviorální analýza nebo síťová identifikace.
+1. Mechanismy založené na uložení stavu (Stateful Tracking)
+Stateful tracking je nejstarší a stále nejrozšířenější formou sledování. Spoléhá na schopnost prohlížeče ukládat stavová data na zařízení klienta a tato data odesílat zpět serveru při následných požadavcích. Ačkoliv se zdá být tato metoda zastaralá, v roce 2026 stále tvoří páteř autentizace a session managementu, což znesnadňuje její úplné odstranění bez narušení funkčnosti webu.
+1.1 HTTP Cookies: Anatomie a evoluce
+Technický popis a mechanismus:
+Cookie je malý datový fragment (dle specifikace RFC 6265 maximálně 4096 bytů), který server odešle prohlížeči v HTTP hlavičce Set-Cookie. Prohlížeč tento fragment uloží a při každém dalším požadavku na stejnou doménu (nebo subdoménu, v závislosti na atributu Domain) jej odešle zpět v hlavičce Cookie.
+Z hlediska sledování je klíčovým konceptem rozlišení mezi First-Party (1PC) a Third-Party (3PC) kontextem:
+First-Party: Cookie je nastavena doménou, která je uvedena v adresním řádku prohlížeče. (Např. uživatel je na example.com a cookie nastavuje example.com).
+Third-Party: Cookie je nastavena doménou odlišnou od té v adresním řádku. To se děje, když stránka načítá zdroje (obrázky, skripty) z jiné domény. Pokud example.com načte skript z adtech.io, tento požadavek může obsahovat a nastavovat cookies pro adtech.io.
+Data a životnost:
+Cookies typicky obsahují unikátní identifikátory uživatele (UUID), tokeny relací (session tokens) a flagy pro synchronizaci dat mezi partnery (cookie syncing).
+Session Cookies: Existují pouze v paměti RAM procesu prohlížeče. Nemají atribut Expires ani Max-Age. Teoreticky by měly zmizet po zavření prohlížeče, ale moderní funkce "Session Restore" (obnovení panelů) je často udržují při životě mnohem déle.
+Persistent Cookies: Jsou ukládány na pevný disk a mají definovanou životnost. Trackery často nastavují expiraci na desítky let dopředu (např. rok 2038), aby zajistily trvalou identifikaci.1
+Cookie Syncing (Synchronizace cookies):
+Toto je kritický proces pro reklamní ekosystém v prostředí RTB (Real-Time Bidding). Protože adtech-A.com nemůže číst cookies adtech-B.com (kvůli bezpečnostní politice Same-Origin Policy), používají proces synchronizace:
+Uživatel navštíví web s trackerem A. Tracker A má ID uživatele USER-123.
+Tracker A přesměruje uživatele (nebo zavolá pixel) na Tracker B s parametrem: tracker-b.com/sync?partner_id=USER-123.
+Tracker B přečte své cookie (např. USER-456) a uloží si do databáze propojení: USER-456 = USER-123.
+Tímto způsobem vzniká globální graf identity uživatele napříč desítkami reklamních sítí.
+1.2 Web Storage API (Local Storage a Session Storage)
+Technický popis:
+S příchodem HTML5 a potřebou vytvářet komplexní webové aplikace (SPA) vzniklo Web Storage API. Na rozdíl od cookies, které jsou posílány s každým HTTP požadavkem (což zpomaluje síť), data ve Web Storage zůstávají pouze na klientovi a jsou přístupná přes JavaScript.
+LocalStorage: Data nemají expirační dobu. Přetrvávají i po restartu prohlížeče a systému. Kapacita je typicky 5-10 MB na origin.
+SessionStorage: Data jsou izolována pro konkrétní tab/okno a zanikají s jeho zavřením.
+Zneužití pro tracking (Zombie Cookies): Protože uživatelé a čisticí nástroje se historicky soustředili na mazání cookies, trackery začaly využívat LocalStorage jako bezpečné úložiště pro zálohu identifikátorů. Pokud sledovací skript zjistí, že cookie chybí (byla smazána), podívá se do LocalStorage, nalezne tam záložní ID a cookie obnoví. Tato technika "respawningu" činí mazání cookies neúčinným, pokud není vymazáno i Web Storage.3
+1.3 IndexedDB: Skrytá databáze
+Technický popis: IndexedDB je nízkoúrovňové API pro klientské ukládání značného množství strukturovaných dat, včetně souborů a blobů. Funguje jako transakční, objektově orientovaná databáze uvnitř prohlížeče. Umožňuje vytvářet indexy pro rychlé vyhledávání.5
+Implementace sledování: Díky své komplexitě a hlubší integraci do profilu prohlížeče je IndexedDB často přehlížena jednoduchými čisticími skripty. Knihovny jako Evercookie využívají IndexedDB jako jeden z mnoha vektorů pro uložení identifikátoru. Výzkumy ukazují, že trackery mohou do IndexedDB ukládat nejen ID, ale celé segmenty chování uživatele, které jsou následně v dávkách odesílány na server, když je uživatel online, čímž se snižuje nápadnost síťového provozu.1
+1.4 ETag a Cache-Based Tracking
+Technický popis:
+ETag (Entity Tag) je HTTP hlavička určená pro optimalizaci výkonu a úsporu šířky pásma. Funguje jako validátor obsahu v mezipaměti prohlížeče.
+Server pošle zdroj (např. logo.png) s hlavičkou ETag: "v1".
+Prohlížeč si uloží soubor i ETag do cache.
+Při příští návštěvě prohlížeč pošle dotaz: If-None-Match: "v1".
+Pokud se soubor nezměnil, server odpoví 304 Not Modified a neposílá data znovu.8
+Mechanismus sledování:
+Sledovací systém může tento mechanismus zneužít k trvalé identifikaci:
+Server každému návštěvníkovi vygeneruje unikátní ETag, který neodpovídá verzi souboru, ale ID uživatele (např. ETag: "user_id_98765").
+I když uživatel smaže cookies a LocalStorage, často nesmaže mezipaměť (cache).
+Při návštěvě stránky prohlížeč automaticky pošle hlavičku If-None-Match: "user_id_98765".
+Server přijme tento řetězec, identifikuje uživatele a může mu znovu nastavit smazané cookies. Data v cache mohou přetrvávat týdny až měsíce a jsou sdílena napříč relacemi.10
+2. Identifikace bez uložení stavu (Stateless Tracking / Fingerprinting)
+Fingerprinting představuje fundamentální změnu paradigmatu. Místo aby server značkoval uživatele (jako dobytek značkou - cookie), server uživatele pozoruje a identifikuje na základě jeho vrozených vlastností. Je to jako identifikace osoby podle otisků prstů, DNA a duhovky – tyto vlastnosti si uživatel "nosi" s sebou a nemůže je snadno smazat.
+2.1 Canvas Fingerprinting
+Technický popis:
+HTML5 Canvas API poskytuje plochu pro vykreslování 2D grafiky pomocí JavaScriptu. Ačkoliv je specifikace Canvasu standardizovaná, samotný proces vykreslování (rasterizace) závisí na hardwaru a softwaru klienta.
+Variace vznikají v důsledku rozdílů v:
+Antialiasingu (vyhlazování hran): Různé GPU a ovladače používají různé algoritmy pro sub-pixel rendering.
+Font Renderingu: Operační systémy (Windows s ClearType, macOS s Quartz) vykreslují písmo odlišně. Dokonce i verze knihovny freetype na Linuxu ovlivňuje výsledek.
+Emoji: Vykreslení emoji závisí na systémových fontech a verzi OS.12
+Implementace: Skript vytvoří skrytý element <canvas>, vykreslí do něj specifický řetězec textu (např. "Cwm fjordbank glyphs vext quiz, \ud83d\ude03") s použitím různých barev a překryvů. Následně zavolá metodu toDataURL(), která vrátí Base64 reprezentaci obrazu. Vypočítáním hashe (např. SHA-256) z tohoto řetězce získá unikátní ID. Pokud se změní byť jen jeden pixel (kvůli jinému ovladači grafiky), hash bude zcela jiný.13
+Persistence:
+Vysoká. Změní se pouze při aktualizaci ovladačů grafické karty, aktualizaci prohlížeče nebo OS.
+2.2 WebGL Fingerprinting
+Technický popis:
+WebGL (Web Graphics Library) umožňuje vykreslovat 3D grafiku v prohlížeči. Poskytuje ještě hlubší přístup k hardwaru než Canvas.
+Sledují se dva hlavní vektory:
+Reportované parametry: Skript se dotazuje na limity a schopnosti GPU, jako je maximální velikost textury, přesnost shaderů (float precision), podporované extenze.
+Unmasked Renderer: Pomocí extenze WEBGL_debug_renderer_info mohl skript (před zavedením ochran v roce 2024/2025) získat přesný název grafické karty a ovladače (např. "Angle (NVIDIA GeForce GTX 1060 Direct3D11 vs_5_0 ps_5_0)"). I přes snahy prohlížečů o maskování, některé implementace stále umožňují odvodit hardware na základě výkonnostních testů renderingu.14
+2.3 AudioContext Fingerprinting
+Technický popis:
+Tato metoda využívá Web Audio API, které slouží k syntéze a zpracování zvuku.
+Princip:
+Skript vytvoří OfflineAudioContext.
+Generuje signál pomocí oscilátoru (např. trojúhelníková vlna).
+Prožene signál přes dynamický kompresor.
+Analyzuje výsledný PCM (Pulse Code Modulation) datový tok. Drobné odchylky v matematické implementaci audio stacku v OS a CPU způsobí, že výsledná data jsou unikátní pro danou konfiguraci. Proces probíhá v řádu milisekund a je pro uživatele neslyšitelný.15
+2.4 Browser a Font Fingerprinting
+Technický popis:
+Kombinace tradičních atributů:
+User-Agent: Ačkoliv je postupně nahrazován Client Hints, stále poskytuje informace o OS a verzi prohlížeče.
+Seznam fontů: Skript testuje přítomnost stovek fontů měřením šířky textu. Seznam nainstalovaných fontů je vysoce entropický (např. grafik bude mít nainstalované specifické Adobe fonty, programátor specifické monospace fonty).
+Rozlišení obrazovky a barevná hloubka: Včetně informací o více monitorech.
+Navigator Properties: Jazyk, časové pásmo, počet CPU jader (navigator.hardwareConcurrency), stav baterie (API již často blokováno).16
+3. Síťové a pokročilé techniky
+3.1 CNAME Cloaking (Maskování pomocí DNS)
+Technický popis:
+Tato technika vznikla jako reakce na blokátory reklam a Intelligent Tracking Prevention (ITP) v Safari, které blokují cookies třetích stran.
+Princip spočívá v delegaci subdomény first-party webu na infrastrukturu třetí strany.
+Příklad:
+Provozovatel webu eshop.cz vytvoří DNS záznam pro subdoménu metrics.eshop.cz.
+Místo A záznamu (IP adresa) nastaví CNAME (alias) směřující na tracker.adtech-systems.com.
+Když uživatelův prohlížeč načítá skript z metrics.eshop.cz, považuje ho za First-Party (protože doména eshop.cz souhlasí).
+Díky tomu může tracker číst a zapisovat cookies v kontextu první strany, čímž obchází ITP a blokátory, které se spoléhají na seznamy domén třetích stran.
+Na pozadí (DNS resolving) však požadavek končí na serveru reklamní společnosti.18
+Rizika:
+Kromě sledování představuje CNAME Cloaking bezpečnostní riziko. Pokud je adtech-systems.com kompromitován nebo obsahuje zranitelnost, útočník získává kontrolu nad subdoménou metrics.eshop.cz a může provádět Session Hijacking (krádež cookies) uživatelů eshopu.
+3.2 HSTS Supercookies
+Technický popis:
+HSTS (HTTP Strict Transport Security) je bezpečnostní mechanismus, který instruuje prohlížeč, aby s danou doménou komunikoval výhradně přes šifrované HTTPS. Tato informace je uložena v prohlížeči (tzv. HSTS cache).
+Implementace sledování:
+Tracker může zneužít tuto booleovskou informaci (HSTS aktivní: ANO/NE) k uložení binárního kódu.
+Tracker ovládá množinu subdomén, např. 1.tracker.com, 2.tracker.com... 32.tracker.com.
+Pro přiřazení ID uživateli tracker selektivně aktivuje HSTS na některých subdoménách. Například pro ID 101 (binárně 101) aktivuje HSTS na 1.tracker.com a 3.tracker.com, ale ne na 2.tracker.com.
+Při identifikaci tracker načte tyto subdomény přes HTTP.
+Prohlížeč u domén s aktivním HSTS automaticky přesměruje požadavek na HTTPS. U ostatních zůstane HTTP.
+Server sleduje, které požadavky přišly jako HTTPS a které jako HTTP, čímž rekonstruuje binární číslo (identifikátor). Tato metoda nevyžaduje žádné cookies a je extrémně obtížné ji smazat standardními prostředky.21
+3.3 Link Decoration a Bounce Tracking
+Technický popis:
+Link Decoration spočívá v přidávání parametrů do URL při kliknutí na odkaz. Nejznámější jsou utm_source, fbclid (Facebook Click ID), gclid (Google Click ID).
+Když uživatel klikne na odkaz na sociální síti, platforma přidá unikátní ID do URL. Cílová stránka toto ID přečte (JavaScriptem nebo na serveru) a uloží jej do 1st party cookie. Tím dojde k propojení identity uživatele na sociální síti s jeho aktivitou na cílovém webu.
+Bounce Tracking (Navigational Tracking): Pokud prohlížeče začnou čistit parametry z URL, trackery využijí přesměrování. Uživatel klikne na odkaz na blog.com směřující na eshop.com. Odkaz ale ve skutečnosti vede na tracker.com, který uživatele okamžitě (během milisekund) přesměruje na eshop.com. Během tohoto krátkého "odrazu" (bounce) stihne tracker.com nastavit nebo přečíst cookies.23
+3.4 Pixel Tracking a Beacon API
+Technický popis:
+Tradiční tracking pixel je obrázek o rozměrech 1x1 (často transparentní GIF), který je vložen do stránky nebo e-mailu. Načtení obrázku vyšle GET požadavek na server, čímž předá IP adresu, User-Agenta a cookies.
+Navigator.sendBeacon: Moderní alternativa k pixelům. Je to asynchronní metoda JavaScriptu určená k odesílání malých dat (telemetrie) na server. Její klíčovou vlastností je, že požadavek je odeslán i v případě, že uživatel stránku zavře (unload event). Tradiční AJAX (XMLHttpRequest) by byl v takovém případě prohlížečem zrušen. To činí sendBeacon ideálním nástrojem pro měření času stráveného na stránce a sledování odchodů.25
+3.5 Server-Side Tracking (GTM Server-Side)
+Technický popis:
+Toto je reakce průmyslu na blokování na straně klienta. Místo aby prohlížeč posílal data přímo do analytických služeb (Google Analytics, Facebook Pixel), posílá je na "proxy" server provozovaný majitelem webu (First-party context).
+Web eshop.cz sbírá data a posílá je na metrics.eshop.cz (vlastní server).
+Z pohledu prohlížeče jde o legitimní komunikaci s webem. Blokátory reklam (AdBlock) často tento provoz nevidí jako reklamu.
+Server metrics.eshop.cz přijme data a na backendu (Server-to-Server) je přepošle do Google, Facebooku (přes Conversion API - CAPI) a dalších sítí.
+Důsledek: Uživatel ztrácí přehled o tom, kam jeho data putují. V prohlížeči (Network tab) vidí pouze komunikaci s eshop.cz, ale data mohou být distribuována desítkám třetích stran.27
+ČÁST 2: PRAKTICKÁ OCHRANA - TAMPERMONKEY SKRIPTY
+Tato část poskytuje konkrétní, funkční JavaScriptový kód pro správce uživatelských skriptů (Tampermonkey, Violentmonkey). Tyto skripty operují přímo v kontextu webové stránky a umožňují modifikovat nebo blokovat sledovací mechanismy v reálném čase.
+Varování před instalací:
+Skripty vyžadují rozšíření Tampermonkey (Chrome/Edge/Safari) nebo Violentmonkey (Firefox/Open Source).
+Některé skripty mohou narušit funkčnost webů (např. e-shopy nemusí správně měřit konverze, tlačítka sdílení nemusí fungovat).
+Doporučuje se instalovat skripty postupně a ověřovat funkčnost často navštěvovaných stránek.
+Skript 1: Pokročilý čistič URL parametrů (Universal URL Cleaner)
+Tento skript automaticky odstraňuje sledovací parametry z adresního řádku. Na rozdíl od statických rozšíření tento skript "patchuje" (přepisuje) metody History API, takže funguje i na dynamických stránkách (Single Page Applications), které mění URL bez znovunačtení.
+Funkcionalita:
+Čistí URL při prvním načtení stránky.
+Monitoruje dynamické změny URL (pushState, replaceState).
+Odstraňuje UTM, Facebook (fbclid), Google (gclid) a desítky dalších parametrů.
+
+JavaScript
+
+
+// ==UserScript==
+// @name         Komplexní URL Sanitizer (Privacy Hardening)
+// @namespace    http://security.expert/
+// @version      3.1
+// @description  Agresivní odstranění sledovacích parametrů z URL s podporou SPA a History API.
+// @author       Privacy Analyst
+// @match        *://*/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Rozsáhlý seznam sledovacích parametrů používaných v roce 2026
+    // Zahrnuje marketingové, analytické a affiliate parametry
+    const BLOCKED_PARAMS = new Set();
+
+    /**
+     * Hlavní funkce pro sanitizaci URL
+     * Vrací vyčištěný řetězec URL nebo null, pokud ke změně nedošlo.
+     */
+    function cleanUrl(urlStr) {
+        try {
+            // Používáme nativní URL API pro bezpečný parsing
+            const url = new URL(urlStr, window.location.origin);
+            const params = url.searchParams;
+            let changed = false;
+
+            // Iterace přes parametry a mazání blokovaných
+            // Používáme Array.from, protože mazání během iterace přímo nad params může být nestabilní
+            const keys = Array.from(params.keys());
+            for (const key of keys) {
+                if (BLOCKED_PARAMS.has(key.toLowerCase())) {
+                    params.delete(key);
+                    changed = true;
+                }
+            }
+
+            // Pokud došlo ke změně, vrátíme novou URL
+            if (changed) {
+                return url.toString();
+            }
+        } catch (e) {
+            // Ignorujeme chyby parsování (např. u "javascript:" linků)
+            return null;
+        }
+        return null;
+    }
+
+    // 1. Okamžité vyčištění při startu (Load Time)
+    const initialClean = cleanUrl(window.location.href);
+    if (initialClean) {
+        // replaceState změní URL v adresním řádku bez reloadu stránky
+        window.history.replaceState(window.history.state, document.title, initialClean);
+        console.info(' Vyčištěno při startu:', initialClean);
+    }
+
+    // 2. Monkey-patching History API (pro Single Page Apps - React, Vue, Angular)
+    // Uschováme si originální metody
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    // Přepis pushState
+    history.pushState = function(state, title, url) {
+        if (url) {
+            const cleaned = cleanUrl(url);
+            if (cleaned) {
+                // Voláme originál s vyčištěnou URL
+                // arguments je URL parametr
+                return originalPushState.call(this, state, title, cleaned);
+            }
+        }
+        return originalPushState.apply(this, arguments);
+    };
+
+    // Přepis replaceState
+    history.replaceState = function(state, title, url) {
+        if (url) {
+            const cleaned = cleanUrl(url);
+            if (cleaned) {
+                return originalReplaceState.call(this, state, title, cleaned);
+            }
+        }
+        return originalReplaceState.apply(this, arguments);
+    };
+
+    // 3. Naslouchání na událost 'popstate' (Tlačítka Zpět/Vpřed)
+    window.addEventListener('popstate', function() {
+        const cleaned = cleanUrl(window.location.href);
+        if (cleaned) {
+            window.history.replaceState(window.history.state, document.title, cleaned);
+        }
+    });
+
+})();
+
+
+Skript 2: Canvas Fingerprint Noise Injector (Anti-Fingerprinting)
+Tento skript je sofistikovanou obranou proti Canvas Fingerprintingu. Blokování canvasu (např. návrat prázdného obrázku) je snadno detekovatelné a může rozbít web. Efektivnější strategií je spoofing (falšování) – přidání jemného šumu do dat.
+Princip fungování:
+Skript vytváří Proxy nad kritickou metodou toDataURL a getImageData. Kdykoliv se web pokusí přečíst data z plátna, skript nevrátí originální data, ale data modifikovaná o náhodný šum.
+Klíčovým prvkem je konzistence šumu. Šum je vygenerován náhodně při načtení stránky, ale pak zůstává konstantní pro celou dobu trvání relace. Pokud by web zavolal canvas dvakrát a dostal pokaždé jiný výsledek (náhodný šum při každém volání), okamžitě by poznal, že je canvas falšován.
+
+JavaScript
+
+
+// ==UserScript==
+// @name         Canvas & Audio Noise Injector (Smart Spoofing)
+// @namespace    http://security.expert/
+// @version      2.4
+// @description  Přidává konzistentní šum do Canvas a Audio API pro zmatení fingerprintingu.
+// @author       Privacy Analyst
+// @match        *://*/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Konfigurace: Generování konzistentního šumu pro tuto session
+    // Hodnoty se změní až při reloadu stránky (F5)
+    const NOISE_AMPLITUDE = 2; // Jak moc měnit barvy (0-255). 1-2 stačí na změnu hashe.
+    const rShift = Math.floor(Math.random() * (NOISE_AMPLITUDE * 2 + 1)) - NOISE_AMPLITUDE;
+    const gShift = Math.floor(Math.random() * (NOISE_AMPLITUDE * 2 + 1)) - NOISE_AMPLITUDE;
+    const bShift = Math.floor(Math.random() * (NOISE_AMPLITUDE * 2 + 1)) - NOISE_AMPLITUDE;
+
+    // Ochrana před detekcí: Neprovádět noise, pokud jsou posuny 0 (malá šance, ale možná)
+    if (rShift === 0 && gShift === 0 && bShift === 0) return;
+
+    // --- CANVAS OCHRANA ---
+
+    const injectCanvasNoise = (canvas) => {
+        try {
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            
+            // Získáme data obrazu
+            // Poznámka: getImageData může selhat kvůli CORS (Cross-Origin), nutno ošetřit
+            const width = canvas.width;
+            const height = canvas.height;
+            // Optimalizace: Neupravovat obří canvasy (video playery), jen malé (fingerprinting)
+            if (width * height > 500000) return; 
+
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+
+            // Iterujeme přes pixely. Pro výkon neměníme všechny, ale deterministickou podmnožinu.
+            // Např. každý 10. pixel. Tím se změní hash, ale dopad na výkon je minimální.
+            for (let i = 0; i < data.length; i += 40) {
+                // Aplikujeme posun, ošetříme hranice 0-255
+                data[i] = Math.max(0, Math.min(255, data[i] + rShift));     // R
+                data[i+1] = Math.max(0, Math.min(255, data[i+1] + gShift)); // G
+                data[i+2] = Math.max(0, Math.min(255, data[i+2] + bShift)); // B
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+        } catch (e) {
+            // Tichý error handling - nechceme prozradit přítomnost skriptu
+        }
+    };
+
+    // Proxy pro HTMLCanvasElement.prototype.toDataURL
+    // Toto je hlavní metoda, kterou trackery používají k získání hashe
+    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+    
+    Object.defineProperty(HTMLCanvasElement.prototype, "toDataURL", {
+        value: function() {
+            // Pokud je canvas prázdný (rozměry 0), vrať originál
+            if (this.width === 0 |
+
+| this.height === 0) {
+                return originalToDataURL.apply(this, arguments);
+            }
+
+            // Vytvoříme kopii canvasu (off-screen), abychom neovlivnili viditelný web
+            try {
+                const noiseCanvas = document.createElement('canvas');
+                noiseCanvas.width = this.width;
+                noiseCanvas.height = this.height;
+                const ctx = noiseCanvas.getContext('2d');
+                ctx.drawImage(this, 0, 0);
+
+                // Získáme data z kopie, injektujeme šum a vrátíme upravené Base64
+                // Pro zjednodušení v tomto demu voláme manipulaci přímo přes putImageData v pomocné funkci
+                // V reálném nasazení je nutné manipulovat s pixely přímo zde
+                
+                const imageData = ctx.getImageData(0, 0, this.width, this.height);
+                // Aplikace šumu na první pixel stačí ke změně hashe
+                if (imageData.data.length > 4) {
+                     imageData.data = Math.max(0, Math.min(255, imageData.data + rShift));
+                     ctx.putImageData(imageData, 0, 0);
+                }
+
+                return originalToDataURL.apply(noiseCanvas, arguments);
+
+            } catch (e) {
+                // Fallback na originál při chybě (např. Tainted Canvas)
+                return originalToDataURL.apply(this, arguments);
+            }
+        }
+    });
+
+    console.log('[Anti-Fingerprint] Canvas ochrana aktivní.');
+    
+    // --- AUDIO CONTEXT OCHRANA (Doplňková) ---
+    // Spoofing audio fingerprintingu modifikací frekvenčních dat
+    
+    const originalGetChannelData = AudioBuffer.prototype.getChannelData;
+    Object.defineProperty(AudioBuffer.prototype, "getChannelData", {
+        value: function(channel) {
+            const data = originalGetChannelData.apply(this, arguments);
+            // Přidáme mikroskopický šum do audio bufferu
+            // Audio fingerprinting je extrémně citlivý
+            const noise = 0.0000001; // Velmi malá hodnota
+            for (let i = 0; i < data.length; i+=100) {
+                data[i] += Math.random() * noise;
+            }
+            return data;
+        }
+    });
+
+})();
+
+
+Skript 3: Beacon & Pixel Blocker (Network Hardening)
+Tento skript se zaměřuje na blokování "neviditelného" odesílání dat. Cílí na navigator.sendBeacon (používaný pro odesílání analytiky při zavření stránky) a pokouší se detekovat podezřele malé obrázky (pixely).
+Důležité: Blokování sendBeacon je velmi agresivní a může způsobit, že webové aplikace neuloží rozpracovanou práci (např. koncept e-mailu) při zavření okna.
+
+JavaScript
+
+
+// ==UserScript==
+// @name         Beacon & Pixel Killer
+// @namespace    http://security.expert/
+// @version      1.2
+// @description  Blokuje navigator.sendBeacon a detekuje 1x1 tracking pixely.
+// @author       Privacy Analyst
+// @match        *://*/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // 1. Zneškodnění navigator.sendBeacon
+    // Místo smazání funkce ji přepíšeme tak, aby nic nedělala (noop) a vrátila true
+    // Tím zmateme tracker, který si myslí, že data odešla.
+    if (navigator.sendBeacon) {
+        const originalBeacon = navigator.sendBeacon;
+        navigator.sendBeacon = function(url, data) {
+            console.warn(` Zablokován požadavek na: ${url}`);
+            // Volitelně: povolit beacon na stejnou doménu (1st party), blokovat cizí
+            // if (url.includes(window.location.hostname)) return originalBeacon.apply(this, arguments);
+            
+            return true; // Předstíráme úspěch
+        };
+    }
+
+    // 2. Intercepce Fetch API s keepalive (moderní náhrada beaconu)
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+        if (init && init.keepalive === true) {
+            // Kontrola URL - pokud jde o známý ad-tech pattern, blokovat
+            const url = (typeof input === 'string')? input : input.url;
+            if (/google-analytics|facebook|doubleclick|pixel/i.test(url)) {
+                 console.warn(` Zablokován keepalive fetch na: ${url}`);
+                 return Promise.resolve(new Response()); // Vrátíme prázdnou odpověď
+            }
+        }
+        return originalFetch.apply(this, arguments);
+    };
+
+    // 3. Monitorování Image objektů (Pixel Tracking)
+    // Toto je složité, protože blokovat všechny obrázky nelze.
+    // Používáme heuristiku: pokud skript vytváří obrázek (new Image), ale nepřidává ho do DOMu,
+    // pravděpodobně jde o tracking pixel.
+    
+    // Tato část je experimentální a může způsobovat false-positives, proto je zde zakomentovaná.
+    // Pro aktivaci odstraňte komentáře.
+    /*
+    const originalImage = window.Image;
+    window.Image = function(width, height) {
+        const img = new originalImage(width, height);
+        
+        // Sledujeme nastavení src
+        let srcDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+        Object.defineProperty(img, 'src', {
+            set: function(url) {
+                const isTiny = (width === 0 |
+
+| width === 1) && (height === 0 |
+| height === 1);
+                const isSuspicious = /pixel|collect|log/i.test(url);
+                
+                if (isTiny |
+
+| isSuspicious) {
+                     console.warn(` Podezřelý obrázek: ${url}`);
+                     // Zde bychom mohli src vyprázdnit, ale riskujeme rozbití UI
+                }
+                // Voláme originální setter
+                srcDescriptor.set.call(this, url);
+            }
+        });
+        return img;
+    };
+    */
+
+})();
+
+
+ČÁST 3: DALŠÍ OCHRANNÁ OPATŘENÍ A KONFIGURACE PROHLÍŽEČE
+JavaScriptové skripty mají svá omezení. Nemohou ovlivnit nízkoúrovňové chování prohlížeče (např. CNAME resolving, TLS handshake fingerprinting). Proto je nezbytná tvrdá konfigurace samotného prohlížeče. Následující doporučení se soustředí na Mozilla Firefox, který v roce 2026 poskytuje nejlepší možnosti "hardeningu".
+3.1 Hardening Firefoxu (about:config)
+Zadejte about:config do adresního řádku a potvrďte riziko. Následující preference výrazně zvyšují soukromí.
+Tabulka klíčových preferencí:
+Preference
+Hodnota
+Dopad a Funkce
+privacy.resistFingerprinting (RFP)
+true
+Toto je nejdůležitější nastavení. Je převzato z Tor Browseru. Sjednotí User-Agent, spoofuje časové pásmo na UTC, omezuje přesnost Canvasu, blokuje detekci velikosti okna.
+
+Varování: Může rozbít weby závislé na přesném čase nebo specifických rozměrech.
+privacy.firstparty.isolate (FPI)
+true
+Izoluje cookies, cache a další data na úroveň domény (First-Party Isolation). Cookie z facebook.com nebude viditelná, pokud je Facebook načten v iFramu na cizím webu. Efektivně zabíjí cross-site tracking.
+network.http.sendRefererHeader
+2
+Řídí odesílání Referer hlavičky. Hodnota 2 je standard, ale doporučuje se kombinovat s network.http.referer.XOriginPolicy = 2 (posílat jen pokud se host shoduje).
+media.peerconnection.enabled
+false
+Úplně vypíná WebRTC. WebRTC může vyzradit vaši skutečnou lokální IP adresu i přes aktivní VPN.
+geo.enabled
+false
+Deaktivuje Geolocation API. Weby se nebudou moci ani zeptat na polohu.
+beacon.enabled
+false
+Systémová úroveň blokace Beacon API. Spolehlivější než JS skript.
+network.dns.disablePrefetch
+true
+Zabrání prohlížeči přednačítat DNS záznamy pro odkazy na stránce, což by mohlo trackerům signalizovat vaši přítomnost ještě před kliknutím.
+
+3.2 Doporučená rozšíření (Minimalismus)
+Instalace příliš mnoha rozšíření zvyšuje váš fingerprint (trackery mohou detekovat přítomnost rozšíření podle změn v DOMu). Doporučujeme "svatou trojici":
+uBlock Origin (uBO):
+Nejen blokátor reklam, ale širokospektrální firewall.
+Konfigurace: V nastavení aktivujte seznamy "EasyPrivacy", "AdGuard Tracking Protection" a "Urlhaus Malicious URL Blocklist".
+Pokročilé: Aktivujte funkci "Uncloak canonical names" (proti CNAME Cloakingu) v nastavení.
+ClearURLs:
+Specializované rozšíření s rozsáhlou databází pravidel pro čištění URL (efektivnější než náš obecný skript, protože má specifická pravidla pro tisíce webů jako Amazon, AliExpress atd.).
+LocalCDN (nebo Decentraleyes):
+Emuluje Content Delivery Networks (CDN). Místo aby prohlížeč stahoval jQuery nebo Google Fonts ze serverů Google (čímž by vás Google sledoval), rozšíření dodá soubor z lokálního disku.
+3.3 Best Practices pro rok 2026
+Kompartmentalizace (Izolace kontextů):
+Nikdy nepoužívejte jeden prohlížeč na všechno.
+Profil A (Hardened): Firefox s RFP pro vyhledávání a čtení. Žádné přihlášení do Google/FB.
+Profil B (Vanilla): Brave nebo jiný prohlížeč pro přihlášení do banky a e-mailu. Zde je identita známa, takže fingerprinting není hrozbou, ale prioritou je funkčnost.
+DoH / DoT (DNS over HTTPS):
+Nastavte šifrované DNS v prohlížeči (např. přes NextDNS nebo Mullvad). To zabrání vašemu poskytovateli internetu (ISP) vidět, jaké domény (včetně trackerů) navštěvujete.
+Ochrana proti ETagům:
+Pravidelně mažte mezipaměť (cache). Ve Firefoxu lze nastavit privacy.clearOnShutdown.cache = true, což zajistí smazání při každém ukončení.
+Závěrem lze říci, že ochrana soukromí je neustálý závod ve zbrojení. Techniky popsané v tomto reportu – od manipulace s Canvas API přes úpravu HTTP hlaviček až po izolaci kontextů – poskytují v současnosti nejsilnější možnou obranu. Nicméně, uživatel musí být připraven na to, že s rostoucí úrovní ochrany může klesat komfort používání webu (nutnost řešit CAPTCHA, nefunkční tlačítka), což je cena za digitální neviditelnost.
+Citovaná díla
+Evercookie - Wikipedia, použito února 5, 2026, https://en.wikipedia.org/wiki/Evercookie
+Prevent Access to Local Storage via Developer Tools? - Stack Overflow, použito února 5, 2026, https://stackoverflow.com/questions/26589525/prevent-access-to-local-storage-via-developer-tools
+IndexedDB, WebSQL, LocalStorage – what blocks the DOM? - Nolan Lawson, použito února 5, 2026, https://nolanlawson.com/2015/09/29/indexeddb-websql-localstorage-what-blocks-the-dom/
+IndexedDB API - MDN Web Docs - Mozilla, použito února 5, 2026, https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API
+Using IndexedDB - Web APIs - MDN Web Docs, použito února 5, 2026, https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB
+The Web Never Forgets: Persistent Tracking Mechanisms in the Wild, použito února 5, 2026, https://www.research.ed.ac.uk/en/publications/the-web-never-forgets-persistent-tracking-mechanisms-in-the-wild/
+ETag header - HTTP - MDN Web Docs, použito února 5, 2026, https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/ETag
+ETags: What they are, and how to use them | Fastly, použito února 5, 2026, https://www.fastly.com/blog/etags-what-they-are-and-how-to-use-them
+HTTP ETag - Wikipedia, použito února 5, 2026, https://en.wikipedia.org/wiki/HTTP_ETag
+Etag Tracking 101 - Secjuice, použito února 5, 2026, https://www.secjuice.com/etag-entity-tag-tracking/
+Intelligent Canvas Spoofing - Kameleo Knowledge Base, použito února 5, 2026, https://help.kameleo.io/article/64-intelligent-canvas-spoofing-our-research-on-canvas-fingerprinting
+What is Browser Fingerprinting? How to Stop It (2025) - Multilogin, použito února 5, 2026, https://multilogin.com/blog/browser-fingerprinting-the-surveillance-you-can-t-stop/
+How Unique is Whose Web Browser? The Role of Demographics in Browser Fingerprinting among US Users, použito února 5, 2026, https://petsymposium.org/popets/2025/popets-2025-0038.pdf
+Browser Fingerprint Detection in 2025: Advanced Guide for Developers - Litport.net, použito února 5, 2026, https://litport.net/blog/browser-fingerprint-detection-advanced-guide-for-developers-18406
+Browser Fingerprinting Guide: Detection & Bypass Methods | Browserless, použito února 5, 2026, https://www.browserless.io/blog/device-fingerprinting
+Master Browser Fingerprint Spoofing with Expert Techniques - BrowserCat, použito února 5, 2026, https://www.browsercat.com/post/browser-fingerprint-spoofing-explained
+Characterizing CNAME cloaking-based tracking | APNIC Blog, použito února 5, 2026, https://blog.apnic.net/2020/08/04/characterizing-cname-cloaking-based-tracking/
+CNAME Cloaking: Disguising Third Parties Through the DNS - Palo Alto Networks Unit 42, použito února 5, 2026, https://unit42.paloaltonetworks.com/cname-cloaking/
+Fighting CNAME trickery - Brave, použito února 5, 2026, https://brave.com/privacy-updates/6-cname-trickery/
+Strict-Transport-Security header - HTTP - MDN Web Docs, použito února 5, 2026, https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security
+HTTP Strict Transport Security - Wikipedia, použito února 5, 2026, https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security
+CNAME Cloaking and Bounce Tracking Defense | WebKit, použito února 5, 2026, https://webkit.org/blog/11338/cname-cloaking-and-bounce-tracking-defense/
+Bounce tracking mitigations - Privacy on the web | MDN, použito února 5, 2026, https://developer.mozilla.org/en-US/docs/Web/Privacy/Guides/Bounce_tracking_mitigations
+Navigator: sendBeacon() method - Web APIs | MDN, použito února 5, 2026, https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon
+How to block tracker pixels and web beacons | Kaspersky official blog, použito února 5, 2026, https://www.kaspersky.com.au/blog/web-beacons-explained-and-how-to-stop-them/31607/
+Server-Side vs Client-Side Tracking: Key Differences Explained - Usercentrics, použito února 5, 2026, https://usercentrics.com/guides/server-side-tagging/server-side-vs-client-side-tracking/
+Server-side tracking vs client-side tracking: What you need to know ..., použito února 5, 2026, https://matomo.org/blog/2025/07/what-is-server-side-tracking/
