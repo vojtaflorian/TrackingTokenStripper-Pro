@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260205.02
+// @version      20260205.03
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -876,6 +876,124 @@
 
     // Register module
     ModuleRunner.register('historyApiPatch', HistoryApiPatchModule);
+
+    // ============================================================================
+    // MODULE: CANVAS SPOOFING
+    // ============================================================================
+
+    /**
+     * Canvas Spoofing Module - adds noise to canvas fingerprinting attempts
+     * Injects subtle noise that changes the hash but is invisible to the eye
+     */
+    const CanvasSpoofingModule = {
+        name: 'CanvasSpoofing',
+        logger: null,
+        noise: { r: 0, g: 0, b: 0 },
+
+        init(logger) {
+            this.logger = logger;
+
+            // Generate session-consistent noise
+            this.generateNoise();
+
+            // Patch toDataURL
+            this.patchToDataURL();
+
+            // Patch getImageData
+            this.patchGetImageData();
+
+            this.logger.debug('CanvasSpoofing module initialized', {
+                noise: this.noise,
+            });
+        },
+
+        generateNoise() {
+            const amp = CONFIG.fingerprint.noiseAmplitude;
+            this.noise = {
+                r: Math.floor(Math.random() * (amp * 2 + 1)) - amp,
+                g: Math.floor(Math.random() * (amp * 2 + 1)) - amp,
+                b: Math.floor(Math.random() * (amp * 2 + 1)) - amp,
+            };
+
+            // Avoid all zeros (no effect)
+            if (this.noise.r === 0 && this.noise.g === 0 && this.noise.b === 0) {
+                this.noise.r = 1;
+            }
+        },
+
+        patchToDataURL() {
+            const self = this;
+            const original = HTMLCanvasElement.prototype.toDataURL;
+
+            HTMLCanvasElement.prototype.toDataURL = function(...args) {
+                // Skip empty or very large canvases (video players, games)
+                if (this.width === 0 || this.height === 0) {
+                    return original.apply(this, args);
+                }
+                if (this.width * this.height > 500000) {
+                    return original.apply(this, args);
+                }
+
+                try {
+                    self.injectNoise(this);
+                } catch (e) {
+                    // CORS or other error - return original
+                }
+
+                return original.apply(this, args);
+            };
+        },
+
+        patchGetImageData() {
+            const self = this;
+            const original = CanvasRenderingContext2D.prototype.getImageData;
+
+            CanvasRenderingContext2D.prototype.getImageData = function(...args) {
+                const imageData = original.apply(this, args);
+
+                // Skip large data
+                if (imageData.data.length > 2000000) {
+                    return imageData;
+                }
+
+                try {
+                    self.applyNoiseToImageData(imageData);
+                } catch (e) {
+                    // Return original on error
+                }
+
+                return imageData;
+            };
+        },
+
+        injectNoise(canvas) {
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            this.applyNoiseToImageData(imageData);
+            ctx.putImageData(imageData, 0, 0);
+        },
+
+        applyNoiseToImageData(imageData) {
+            const data = imageData.data;
+
+            // Modify every 10th pixel for performance
+            for (let i = 0; i < data.length; i += 40) {
+                data[i] = this.clamp(data[i] + this.noise.r);         // R
+                data[i + 1] = this.clamp(data[i + 1] + this.noise.g); // G
+                data[i + 2] = this.clamp(data[i + 2] + this.noise.b); // B
+                // Alpha (i + 3) unchanged
+            }
+        },
+
+        clamp(value) {
+            return Math.max(0, Math.min(255, value));
+        },
+    };
+
+    // Register module
+    ModuleRunner.register('canvasSpoofing', CanvasSpoofingModule);
 
     // ============================================================================
     // MAIN EXECUTION
