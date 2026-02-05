@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      20260205.05
+// @version      20260205.06
 // @description  Enterprise-grade tracking token removal with comprehensive error handling and logging (2025 Edition)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -1160,6 +1160,124 @@
 
     // Register module
     ModuleRunner.register('beaconBlocker', BeaconBlockerModule);
+
+    // ============================================================================
+    // MODULE: STORAGE POISONER
+    // ============================================================================
+
+    /**
+     * Storage Poisoner Module - corrupts tracking IDs to prevent identity stitching
+     * Instead of deleting (which triggers respawn), modifies values to break linking
+     */
+    const StoragePoisonerModule = {
+        name: 'StoragePoisoner',
+        logger: null,
+        stats: { poisoned: 0 },
+        sessionKey: '_tts_poisoned',
+
+        init(logger) {
+            this.logger = logger;
+
+            // Check if already poisoned this session
+            if (CONFIG.storagePoisoner.frequency === 'session') {
+                if (sessionStorage.getItem(this.sessionKey)) {
+                    this.logger.debug('StoragePoisoner: already poisoned this session');
+                    return;
+                }
+            }
+
+            // Poison localStorage
+            this.poisonStorage(localStorage, 'localStorage');
+
+            // Poison sessionStorage
+            this.poisonStorage(sessionStorage, 'sessionStorage');
+
+            // Poison cookies
+            this.poisonCookies();
+
+            // Mark as poisoned for this session
+            sessionStorage.setItem(this.sessionKey, Date.now().toString());
+
+            this.logger.debug('StoragePoisoner module initialized', {
+                poisoned: this.stats.poisoned,
+            });
+        },
+
+        poisonStorage(storage, storageName) {
+            const targets = CONFIG.storagePoisoner.targets;
+
+            for (const key of Object.keys(targets)) {
+                if (!targets[key]) continue; // Skip disabled targets
+
+                try {
+                    const value = storage.getItem(key);
+                    if (value) {
+                        const poisoned = this.poisonValue(value);
+                        storage.setItem(key, poisoned);
+                        this.stats.poisoned++;
+                        this.logger.debug(`${storageName} poisoned: ${key}`);
+                    }
+                } catch (e) {
+                    // Ignore errors (may be blocked by browser)
+                }
+            }
+        },
+
+        poisonCookies() {
+            const targets = CONFIG.storagePoisoner.targets;
+            const cookies = document.cookie.split(';');
+
+            for (const cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (!name || !value) continue;
+
+                if (targets[name]) {
+                    try {
+                        const poisoned = this.poisonValue(decodeURIComponent(value));
+                        document.cookie = `${name}=${encodeURIComponent(poisoned)}; path=/`;
+                        this.stats.poisoned++;
+                        this.logger.debug(`Cookie poisoned: ${name}`);
+                    } catch (e) {
+                        // Ignore errors
+                    }
+                }
+            }
+        },
+
+        /**
+         * Poison a value by changing 4 random characters
+         * Preserves format but invalidates the hash for identity stitching
+         */
+        poisonValue(original) {
+            if (!original || typeof original !== 'string' || original.length < 8) {
+                return original;
+            }
+
+            const chars = 'abcdef0123456789';
+            const arr = original.split('');
+
+            // Safe range: not first 2 or last 2 characters (often contain metadata)
+            const safeStart = Math.min(2, arr.length - 6);
+            const safeEnd = Math.max(safeStart + 4, arr.length - 2);
+
+            // Change 4 random positions
+            for (let i = 0; i < 4; i++) {
+                const pos = safeStart + Math.floor(Math.random() * (safeEnd - safeStart));
+                if (pos < arr.length && /[a-f0-9]/i.test(arr[pos])) {
+                    arr[pos] = chars[Math.floor(Math.random() * chars.length)];
+                }
+            }
+
+            return arr.join('');
+        },
+
+        getStats() {
+            return this.stats;
+        },
+    };
+
+    // Register module
+    ModuleRunner.register('storagePoisoner', StoragePoisonerModule);
 
     // ============================================================================
     // MAIN EXECUTION
