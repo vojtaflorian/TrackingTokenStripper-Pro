@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         TrackingTokenStripper Pro
-// @version      0.8.0
+// @version      0.8.1
 // @description  Enterprise-grade anti-tracking suite: URL cleaning, fingerprint spoofing, beacon blocking, and more (v2)
 // @homepage     https://github.com/vojtaflorian/TrackingTokenStripper-Pro
 // @namespace    https://github.com/vojtaflorian/TrackingTokenStripper-Pro
@@ -133,7 +133,7 @@
       networkInfo: true, // Fake network info
       hardwareInfo: true, // Fake hardware info
       fakeValues: {
-        maxTouchPoints: 5,
+        maxTouchPoints: 0,
         hardwareConcurrency: 4,
         deviceMemory: 4,
         connectionType: "4g",
